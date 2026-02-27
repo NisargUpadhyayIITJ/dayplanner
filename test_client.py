@@ -1,12 +1,9 @@
-import httpx
 import json
+from google import genai
+from models import DailyRoutine
+import os
 
-from openai import OpenAI
-
-client = OpenAI(
-    api_key="EMPTY",  # Dummy API key
-    base_url="http://localhost:8001/v1",  # Default vLLM server URL
-)
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) # Assumes GEMINI_API_KEY environment variable is set
 
 example_input = {
     "user_id": "upadhyay_nisarg",
@@ -34,21 +31,15 @@ example_input = {
     "today_deadlines": [{"title": "Physics assignment", "due": "23:59"}]
 }
 
-# response = httpx.post(
-#     "http://localhost:8001/generate_daily_routine",
-#     json=example_input,
-#     timeout=120
-# )
-
-chat_completion = client.chat.completions.create(
-    model="LocoreMind/LocoOperator-4B",  # Use the model name you served
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": str(example_input)}
-    ]
+print("Generating routine via Gemini API...")
+response = client.models.generate_content(
+    model='gemini-2.0-flash',
+    contents=[str(example_input)],
+    config={
+        'response_mime_type': 'application/json',
+        'response_schema': DailyRoutine,
+    }
 )
 
-print(chat_completion.choices[0].message.content)
-
-# print("Status:", response.status_code)
-# print(json.dumps(response.json(), indent=2))
+print("\n--- Generated Routine ---")
+print(json.dumps(response.parsed.model_dump(), indent=2))

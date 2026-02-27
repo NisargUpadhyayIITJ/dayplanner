@@ -1,6 +1,24 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 
+# 1. Define exactly what goes inside the task
+class ScheduledTask(BaseModel):
+    time_slot: str
+    task_name: str
+    is_attendance_safe: bool
+    estimated_minutes: int
+
+# 2. Define exactly what goes inside the metadata
+class RoutineMetadata(BaseModel):
+    confidence_score: float
+    energy_peak_utilized: bool
+
+class DailyRoutine(BaseModel):
+    date: str
+    # 3. Use the strict models instead of Dicts
+    scheduled_tasks: List[ScheduledTask] 
+    metadata: RoutineMetadata
+
 class Personality(BaseModel):
     chronotype: str = Field(..., description="early_bird | night_owl")
     energy_peaks: List[str]          # e.g. ["06:00-11:00", "16:00-20:00"]
@@ -48,14 +66,14 @@ class TimeBlock(BaseModel):
     notes: str = ""
     attend: Optional[bool] = None   # for lectures
 
-class DailyRoutine(BaseModel):
-    date: str
-    user_id: str
-    daily_summary: str
-    total_focus_hours: float
-    attendance_plan: Dict[str, Any]   # attended, skipped, 75% impact
-    schedule: List[TimeBlock]
-    deep_focus_blocks: List[Dict[str, str]]
-    recommended_skips: List[str]
-    energy_forecast: Dict[str, str]
-    rationale: str
+# class DailyRoutine(BaseModel):
+#     date: str
+#     user_id: str
+#     daily_summary: str
+#     total_focus_hours: float
+#     attendance_plan: Dict[str, Any]   # attended, skipped, 75% impact
+#     schedule: List[TimeBlock]
+#     deep_focus_blocks: List[Dict[str, str]]
+#     recommended_skips: List[str]
+#     energy_forecast: Dict[str, str]
+#     rationale: str
