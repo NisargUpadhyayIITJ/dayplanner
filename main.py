@@ -5,7 +5,7 @@ load_dotenv()  # Load .env before anything else
 from fastapi import FastAPI, HTTPException
 from typing import Dict, Any
 
-from models import DailyInput, DailyRoutine
+from models import DailyInput, DailyRoutine, RoutineResponse
 from rl_models import CompletionLog, CriticEvaluation
 from llm_engine import LLMScheduler
 from history_manager import HistoryManager
@@ -20,8 +20,18 @@ critic = Critic()
 
 # ── Actor endpoint ───────────────────────────────────────────────────
 
-@app.post("/generate_daily_routine", response_model=DailyRoutine)
+@app.post("/generate_daily_routine", response_model=RoutineResponse)
 async def generate_daily_routine(input_data: DailyInput):
+    """
+    Generate an optimised daily routine.
+
+    Accepts the extended DailyInput (now includes `apps_to_align_with_focus_timer`
+    and `archetype`) and returns a RoutineResponse envelope with:
+      - data.meta          – institution / program / semester metadata
+      - data.suggested_timetable – normalised weekly timetable
+      - data.scheduled_tasks     – today's minute-by-minute plan
+      - data.warnings            – any conflicts or attendance risks
+    """
     history_mgr = HistoryManager(input_data.user_id)
     recent_history = history_mgr.get_recent_history(days=5)
 
@@ -29,12 +39,22 @@ async def generate_daily_routine(input_data: DailyInput):
     policy = PolicyStore(input_data.user_id)
     policy_block = policy.get_policy_prompt_block()
 
-    routine = llm.generate_routine(input_data, recent_history, policy_block=policy_block)
+    routine_response: RoutineResponse = llm.generate_routine(
+        input_data, recent_history, policy_block=policy_block
+    )
 
-    # Save generated plan (completion will be added later via /log_completion)
-    history_mgr.save_plan(routine.model_dump())
+    # Persist the generated plan (completion merged later via /log_completion)
+    plan_dict = {
+        "date": input_data.current_date,
+        "scheduled_tasks": [t.model_dump() for t in routine_response.data.scheduled_tasks],
+        "metadata": {
+            "confidence_score": routine_response.data.meta.confidence,
+            "energy_peak_utilized": True,
+        },
+    }
+    history_mgr.save_plan(plan_dict)
 
-    return routine
+    return routine_response
 
 
 # ── Completion logging ───────────────────────────────────────────────
@@ -69,18 +89,14 @@ async def trigger_reflection(user_id: str, date: str):
     if entry.get("generated_plan") is None:
         raise HTTPException(status_code=400, detail=f"No generated plan for {date}. Cannot reflect without a plan.")
 
-    # Reconstruct models
     plan = DailyRoutine.model_validate(entry["generated_plan"])
     completion = CompletionLog.model_validate(entry["completion"])
 
-    # Load existing policy
     policy = PolicyStore(user_id)
     existing_rules = policy.get_all_rules()
 
-    # Run the Critic
     evaluation = critic.evaluate(plan, completion, existing_rules)
 
-    # Update policy store with proposed rules
     policy.update_rules(evaluation.proposed_rules)
 
     print(f"🧠 Reflection complete for {date} by {user_id}: score={evaluation.performance_score}")

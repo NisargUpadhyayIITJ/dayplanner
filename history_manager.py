@@ -24,13 +24,7 @@ class HistoryManager:
         with open(self.file_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
 
-    # ── New methods for the RL loop ──────────────────────────────────
-
     def save_completion(self, date: str, completion_data: Dict) -> bool:
-        """
-        Find the history entry for `date` and merge completion data into it.
-        Returns True if the entry was found and updated, False otherwise.
-        """
         if not self.file_path.exists():
             return False
 
@@ -45,7 +39,6 @@ class HistoryManager:
                     updated = True
                 f.write(json.dumps(entry) + "\n")
 
-        # If no matching plan was found, append a standalone completion entry
         if not updated:
             standalone = {
                 "date": date,
@@ -58,7 +51,6 @@ class HistoryManager:
         return updated
 
     def get_entry_for_date(self, date: str) -> Optional[Dict]:
-        """Return the full history entry (plan + completion) for a specific date."""
         if not self.file_path.exists():
             return None
         with open(self.file_path, "r") as f:
