@@ -32,6 +32,8 @@ async def generate_daily_routine(input_data: DailyInput):
       - data.scheduled_tasks     – today's minute-by-minute plan
       - data.warnings            – any conflicts or attendance risks
     """
+    print(f"---- GENERATE DAILY ROUTINE INPUT ----\n{input_data.model_dump_json(indent=2)}\n--------------------------------------")
+
     history_mgr = HistoryManager(input_data.user_id)
     recent_history = history_mgr.get_recent_history(days=5)
 
@@ -42,6 +44,8 @@ async def generate_daily_routine(input_data: DailyInput):
     routine_response: RoutineResponse = llm.generate_routine(
         input_data, recent_history, policy_block=policy_block
     )
+
+    print(f"---- GENERATE DAILY ROUTINE OUTPUT ----\n{routine_response.model_dump_json(indent=2)}\n---------------------------------------")
 
     # Persist the generated plan (completion merged later via /log_completion)
     plan_dict = {
@@ -110,3 +114,9 @@ async def view_policy(user_id: str):
     """Return the current learned scheduling policy for a user."""
     policy = PolicyStore(user_id)
     return policy.to_dict()
+
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8022, reload=True)

@@ -8,6 +8,7 @@ from models import (
     TimetableMeta, SuggestedTimetableEntry, ScheduledTask
 )
 from datetime import datetime
+from schedule_fixer import build_collision_free_schedule
 
 
 # ── Internal LLM output schema (what the LLM actually generates) ─────
@@ -31,7 +32,7 @@ class _LLMOutput(BaseModel):
 
 
 class LLMScheduler:
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-3-flash-preview"):
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
@@ -113,7 +114,7 @@ based on the timetable slots provided, expanding them across all weekdays logica
                 response_mime_type="application/json",
                 response_schema=_LLMOutput,
                 temperature=0.3,
-                max_output_tokens=8192,
+                max_output_tokens=65536,
             ),
         )
 
@@ -126,6 +127,12 @@ based on the timetable slots provided, expanding them across all weekdays logica
                 "LLM returned an empty or unparseable response. "
                 f"Finish reason: {response.candidates[0].finish_reason if response.candidates else 'no candidates'}"
             )
+
+        # ── Post-process: inject classes + resolve collisions (pure logic) ──
+        fixed_tasks = build_collision_free_schedule(
+            llm_tasks=raw.scheduled_tasks,
+            timetable_entries=input_data.timetable,
+        )
 
         # ── Build RoutineResponse from _LLMOutput ──────────────────
         meta = TimetableMeta(
@@ -141,7 +148,7 @@ based on the timetable slots provided, expanding them across all weekdays logica
         response_data = RoutineResponseData(
             meta=meta,
             suggested_timetable=raw.suggested_timetable,
-            scheduled_tasks=raw.scheduled_tasks,
+            scheduled_tasks=fixed_tasks,
             warnings=raw.warnings,
         )
 
