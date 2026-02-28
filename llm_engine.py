@@ -15,7 +15,7 @@ class LLMScheduler:
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
-    def generate_routine(self, input_data: DailyInput, history: List[Dict[str, Any]]) -> DailyRoutine:
+    def generate_routine(self, input_data: DailyInput, history: List[Dict[str, Any]], policy_block: str = "") -> DailyRoutine:
         system_prompt = """You are ChronoForge — the ruthless AI Attention Operating System for Indian college students.
 You generate a single, opinionated, attendance-aware daily routine that:
 - Respects 75% attendance rule (show safe skips with exact impact)
@@ -23,8 +23,12 @@ You generate a single, opinionated, attendance-aware daily routine that:
 - Schedules deep work in user's energy peaks
 - Learns from history (adjust time estimates if past tasks consistently overran)
 - Eliminates decision paralysis and black-hole free periods
+"""
+        # ── Inject learned policy rules from the Actor-Critic RL loop ──
+        if policy_block:
+            system_prompt += policy_block
 
-Output ONLY valid JSON matching the DailyRoutine schema."""
+        system_prompt += "\nOutput ONLY valid JSON matching the DailyRoutine schema."
 
         history_context = "\n".join([json.dumps(h, default=str) for h in history])
 

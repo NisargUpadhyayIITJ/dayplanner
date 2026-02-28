@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 
+
 class HistoryManager:
     def __init__(self, user_id: str):
         self.file_path = Path(f"history_{user_id}.jsonl")
@@ -18,7 +19,51 @@ class HistoryManager:
         entry = {
             "date": plan["date"],
             "generated_plan": plan,
-            "completion": completion
+            "completion": completion,
         }
         with open(self.file_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
+
+    # ── New methods for the RL loop ──────────────────────────────────
+
+    def save_completion(self, date: str, completion_data: Dict) -> bool:
+        """
+        Find the history entry for `date` and merge completion data into it.
+        Returns True if the entry was found and updated, False otherwise.
+        """
+        if not self.file_path.exists():
+            return False
+
+        lines = self.file_path.read_text().strip().splitlines()
+        updated = False
+
+        with open(self.file_path, "w") as f:
+            for line in lines:
+                entry = json.loads(line)
+                if entry.get("date") == date and entry.get("completion") is None:
+                    entry["completion"] = completion_data
+                    updated = True
+                f.write(json.dumps(entry) + "\n")
+
+        # If no matching plan was found, append a standalone completion entry
+        if not updated:
+            standalone = {
+                "date": date,
+                "generated_plan": None,
+                "completion": completion_data,
+            }
+            with open(self.file_path, "a") as f:
+                f.write(json.dumps(standalone) + "\n")
+
+        return updated
+
+    def get_entry_for_date(self, date: str) -> Optional[Dict]:
+        """Return the full history entry (plan + completion) for a specific date."""
+        if not self.file_path.exists():
+            return None
+        with open(self.file_path, "r") as f:
+            for line in f:
+                entry = json.loads(line.strip())
+                if entry.get("date") == date:
+                    return entry
+        return None
